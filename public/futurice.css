@@ -1,0 +1,42 @@
+body
+{
+    background-color : rgba(242,238,230,255.0);
+}
+
+html
+{
+    background-color : rgba(242,238,230,255.0);
+}
+
+.futu-block
+{
+    background-color : #fafafa;
+    padding-top      : 0.5em;
+}
+
+.top-bar
+{
+    background-color : #ffffff;
+    padding-bottom   : 0;
+    border-bottom    : solid 2px rgba(205,236,228,255.0);
+}
+
+.top-bar ul
+{
+    background-color : #ffffff;
+}
+
+.menu.horizontal > li
+{
+    border-bottom : solid 0.29999em #ffffff;
+}
+
+.menu.horizontal > li.futu-active
+{
+    border-bottom : solid 0.29999em rgba(0,90,75,255.0);
+}
+
+header
+{  margin-top    : 0.29999em;
+   margin-bottom : 0.29999em;
+}
