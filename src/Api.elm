@@ -88,6 +88,24 @@ deleteScheduleTemplate templateName =
         }
 
 
+deleteEventTemplate : String -> String -> Cmd Msg
+deleteEventTemplate scheduleTemplateId eventTemplateId =
+    Http.post
+        { url = rootUrl ++ "/commands/delete-event-template/"
+        , body = Http.jsonBody <| deleteEventTemplateJson scheduleTemplateId eventTemplateId
+        , expect = Http.expectWhatever DeletedEventTemplate
+        }
+
+
+addEventTemplate : String -> String -> Cmd Msg
+addEventTemplate scheduleName summary =
+    Http.post
+        { url = rootUrl ++ "/commands/add-event-template"
+        , body = Http.jsonBody <| eventTemplateCreationToJson scheduleName summary
+        , expect = Http.expectWhatever NewEventTemplateSubmitted
+        }
+
+
 eventDecoder : Decoder Event
 eventDecoder =
     Decode.succeed
@@ -159,4 +177,20 @@ scheduleTemplateToJson scheduleTemplate =
         [ ( "name", Encode.string scheduleTemplate.templateName )
         , ( "calendar", Encode.string scheduleTemplate.templateCalendar )
         , ( "timeZone", Encode.string scheduleTemplate.templateTimezone )
+        ]
+
+
+deleteEventTemplateJson : String -> String -> Encode.Value
+deleteEventTemplateJson scheduleTemplateId eventTemplateId =
+    Encode.object
+        [ ( "scheduleTemplate", Encode.string scheduleTemplateId )
+        , ( "id", Encode.string eventTemplateId )
+        ]
+
+
+eventTemplateCreationToJson : String -> String -> Encode.Value
+eventTemplateCreationToJson scheduleName eventTemplateSummary =
+    Encode.object
+        [ ( "scheduleTemplateName", Encode.string scheduleName )
+        , ( "eventTemplateSummary", Encode.string eventTemplateSummary )
         ]

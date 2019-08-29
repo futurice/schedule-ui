@@ -13,6 +13,11 @@ type ScheduleStatus
     | ScheduleStatusActionFailed
 
 
+type ModalDialogStatus
+    = Opened
+    | Closed
+
+
 scheduleStatusToText : ScheduleStatus -> String
 scheduleStatusToText status =
     case status of

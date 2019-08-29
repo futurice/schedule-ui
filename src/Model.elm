@@ -5,6 +5,7 @@ import Browser.Navigation as Nav
 import Dict
 import Msg exposing (..)
 import Routing exposing (..)
+import Set
 import Types exposing (..)
 
 
@@ -27,6 +28,11 @@ type alias Model =
     , calendars : List String
     , timezones : List String
     , scheduleTemplateToEdit : Maybe String
+    , scheduleTemplateEdits : Dict.Dict String ScheduleTemplate
+    , eventTemplateEdits : Dict.Dict String (Dict.Dict String EventTemplate)
+    , editTemplatePageModalStatus : ModalDialogStatus
+    , eventTemplateOpenStatus : Set.Set String
+    , newEventTemplateSummary : String
     }
 
 
@@ -41,6 +47,11 @@ init key =
       , calendars = []
       , timezones = []
       , scheduleTemplateToEdit = Nothing
+      , scheduleTemplateEdits = Dict.empty
+      , eventTemplateEdits = Dict.empty
+      , editTemplatePageModalStatus = Closed
+      , eventTemplateOpenStatus = Set.empty
+      , newEventTemplateSummary = ""
       }
     , Cmd.batch
         [ fetchSchedules

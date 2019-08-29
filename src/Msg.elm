@@ -19,3 +19,11 @@ type Msg
     | EditNewScheduleTemplate ScheduleTemplate
     | DeletedScheduleTemplate (Result Http.Error ())
     | DeleteTemplate String
+    | DeleteEventTemplate String String
+    | DeletedEventTemplate (Result Http.Error ())
+    | EditScheduleTemplateCmd String ScheduleTemplate
+    | SubmitEditedScheduleTemplate String
+    | ToggleEventTemplateOpenStatus String
+    | AddEventTemplate String String
+    | EditNewEventTemplate String
+    | NewEventTemplateSubmitted (Result Http.Error ())
