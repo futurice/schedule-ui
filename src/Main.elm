@@ -110,6 +110,18 @@ update msg model =
         EditNewScheduleTemplate template ->
             ( { model | newScheduleTemplate = template }, Cmd.none )
 
+        EditEventTemplate scheduleTemplateName eventTemplate ->
+            let
+                newDict =
+                    case Dict.get scheduleTemplateName model.eventTemplateEdits of
+                        Nothing ->
+                            Dict.insert scheduleTemplateName (Dict.singleton eventTemplate.eventTemplateId eventTemplate) model.eventTemplateEdits
+
+                        Just d ->
+                            Dict.insert scheduleTemplateName (Dict.insert eventTemplate.eventTemplateId eventTemplate d) model.eventTemplateEdits
+            in
+            ( { model | eventTemplateEdits = newDict }, Cmd.none )
+
         DeletedScheduleTemplate result ->
             case result of
                 Ok _ ->
@@ -127,6 +139,16 @@ update msg model =
                     Dict.insert oldTemplateName template model.scheduleTemplateEdits
             in
             ( { model | scheduleTemplateEdits = newDict }, Cmd.none )
+
+        ResetEditedScheduleTemplate oldTemplateName ->
+            let
+                newScheduleTemplateDict =
+                    Dict.remove oldTemplateName model.scheduleTemplateEdits
+
+                newEventTemplateEditsDict =
+                    Dict.remove oldTemplateName model.eventTemplateEdits
+            in
+            ( { model | scheduleTemplateEdits = newScheduleTemplateDict, eventTemplateEdits = newEventTemplateEditsDict }, Cmd.none )
 
         SubmitEditedScheduleTemplate templateName ->
             ( model, Cmd.none )
@@ -162,6 +184,34 @@ update msg model =
 
             else
                 ( { model | eventTemplateOpenStatus = Set.insert eventTemplateId model.eventTemplateOpenStatus }, Cmd.none )
+
+        SaveEventTemplates scheduleTemplateName ->
+            let
+                eventTemplates =
+                    Maybe.withDefault [] (Dict.get scheduleTemplateName model.eventTemplateEdits |> Maybe.andThen (Just << List.map Tuple.second << Dict.toList))
+            in
+            ( model, Cmd.batch (List.map (editEventTemplate scheduleTemplateName) eventTemplates) )
+
+        EditEventTemplateSubmitted scheduleTemplateName eventTemplateId result ->
+            case result of
+                Ok _ ->
+                    let
+                        newDict =
+                            Dict.update scheduleTemplateName (Maybe.map <| Dict.remove eventTemplateId) model.eventTemplateEdits
+
+                        eventTemplatesNotProcessedYet =
+                            Maybe.withDefault 0 (Maybe.map (List.length << Dict.toList) <| Dict.get scheduleTemplateName newDict)
+                    in
+                    ( { model | eventTemplateEdits = newDict }
+                    , if eventTemplatesNotProcessedYet > 0 then
+                        Cmd.none
+
+                      else
+                        Cmd.batch [ fetchScheduleTemplates ]
+                    )
+
+                Err err ->
+                    ( model, Cmd.none )
 
 
 newSchedulePage : Model -> Browser.Document Msg

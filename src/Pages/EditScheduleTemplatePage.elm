@@ -12,6 +12,7 @@ import Maybe exposing (andThen)
 import Model exposing (..)
 import Msg exposing (..)
 import Pages.Util exposing (..)
+import Regex
 import Set
 import String
 import Types exposing (..)
@@ -87,7 +88,14 @@ editScheduleTemplatePage model =
                                     template
 
                         anyChanges =
-                            template /= newTemplate
+                            let
+                                hasEventTemplateChanges eventTemplate =
+                                    Maybe.withDefault False (Dict.get template.templateName model.eventTemplateEdits |> andThen (Dict.get eventTemplate.eventTemplateId) |> andThen (\old -> Just <| old /= eventTemplate))
+
+                                anyEventTemplateChanges =
+                                    List.any hasEventTemplateChanges <| List.map Tuple.second <| Dict.toList template.eventTemplates
+                            in
+                            template /= newTemplate || anyEventTemplateChanges
 
                         setName name =
                             { newTemplate | templateName = name }
@@ -109,8 +117,8 @@ editScheduleTemplatePage model =
 
                                 changeStatusButtons =
                                     div []
-                                        [ button [ class "button", disabled <| not anyChanges ] [ text "Save all changes" ]
-                                        , button [ class "button", onClick <| EditScheduleTemplateCmd template.templateName template, disabled <| not anyChanges ] [ text "Undo changes" ]
+                                        [ button [ class "button", onClick <| SaveEventTemplates template.templateName, disabled <| not anyChanges ] [ text "Save all changes" ]
+                                        , button [ class "button", onClick <| ResetEditedScheduleTemplate template.templateName, disabled <| not anyChanges ] [ text "Undo changes" ]
                                         ]
                             in
                             div []
@@ -169,21 +177,66 @@ editScheduleTemplatePage model =
                                 ]
 
                         eventTemplateOpenDiv eventTemplate =
+                            let
+                                newEventTemplate =
+                                    case Dict.get template.templateName model.eventTemplateEdits |> andThen (Dict.get eventTemplate.eventTemplateId) of
+                                        Nothing ->
+                                            eventTemplate
+
+                                        Just t ->
+                                            t
+
+                                setEventTemplateSummary summary =
+                                    { newEventTemplate | eventTemplateSummary = summary }
+
+                                setEventTemplateDescription description =
+                                    { newEventTemplate | eventTemplateDescription = description }
+
+                                --                        setEventTemplateOffset  TODO: think about this
+                                setEventTemplateStartTime startTime =
+                                    { newEventTemplate | eventTemplateStartTime = startTime }
+
+                                --                        setEventTemplateEndTime : String
+                                setEventTemplateInviteSupervisors val =
+                                    { newEventTemplate | eventTemplateInviteSupervisors = val }
+
+                                setEventTemplateIsCollective val =
+                                    { newEventTemplate | eventTemplateIsCollective = val }
+
+                                borderColor noErrors =
+                                    if noErrors then
+                                        style "" ""
+
+                                    else
+                                        style "border-color" "red"
+                            in
                             div []
                                 [ div [ class "row" ]
                                     [ leftLabel "Summary:"
-                                    , rightLabel <| input [ type_ "text", value eventTemplate.eventTemplateSummary ] []
+                                    , rightLabel <|
+                                        input
+                                            [ type_ "text"
+                                            , value newEventTemplate.eventTemplateSummary
+                                            , onInput (EditEventTemplate template.templateName << setEventTemplateSummary)
+                                            ]
+                                            []
                                     ]
                                 , div [ class "row" ]
                                     [ leftLabel "Description:"
-                                    , rightLabel <| input [ type_ "text", value eventTemplate.eventTemplateDescription ] []
+                                    , rightLabel <|
+                                        input
+                                            [ type_ "text"
+                                            , value newEventTemplate.eventTemplateDescription
+                                            , onInput (EditEventTemplate template.templateName << setEventTemplateDescription)
+                                            ]
+                                            []
                                     ]
                                 , div [ class "row" ]
                                     [ leftLabel "Event Type:"
                                     , rightLabel <|
                                         select []
-                                            [ option [ selected eventTemplate.eventTemplateIsCollective ] [ text "Common (invite all employee to same event)" ]
-                                            , option [ selected (not eventTemplate.eventTemplateIsCollective) ] [ text "Individual (one separate event for each employee)" ]
+                                            [ option [ selected newEventTemplate.eventTemplateIsCollective ] [ text "Common (invite all employee to same event)" ]
+                                            , option [ selected (not newEventTemplate.eventTemplateIsCollective) ] [ text "Individual (one separate event for each employee)" ]
                                             ]
                                     ]
                                 , div [ class "row" ]
@@ -200,11 +253,35 @@ editScheduleTemplatePage model =
                                     ]
                                 , div [ class "row" ]
                                     [ leftLabel "From:"
-                                    , rightLabel <| input [ type_ "text", value newTemplate.templateName ] []
+                                    , rightLabel <|
+                                        input
+                                            [ type_ "text"
+                                            , onInput (EditEventTemplate template.templateName << setEventTemplateStartTime)
+                                            , borderColor (Regex.contains (Maybe.withDefault Regex.never <| Regex.fromString "^([0-2]?\\d:[0-5]\\d)?$") newEventTemplate.eventTemplateStartTime)
+                                            ]
+                                            []
                                     ]
                                 , div [ class "row" ]
                                     [ leftLabel "Participants:"
-                                    , rightLabel <| input [ type_ "text", value newTemplate.templateName ] []
+                                    , rightLabel <|
+                                        div []
+                                            [ input [ type_ "checkbox" ] []
+                                            , label [] [ text "Invite employees" ]
+                                            , input
+                                                [ type_ "checkbox"
+                                                , onCheck (EditEventTemplate template.templateName << setEventTemplateInviteSupervisors)
+                                                , checked newEventTemplate.eventTemplateInviteSupervisors
+                                                ]
+                                                []
+                                            , label [] [ text "Invite supervisors" ]
+                                            , input
+                                                [ type_ "checkbox"
+
+                                                --                                                , onCheck (EditEventTemplate template.templateName << setEventTemplateInviteFutubuddies)
+                                                ]
+                                                []
+                                            , label [] [ text "Invite futubuddies" ]
+                                            ]
                                     ]
                                 , div [ class "row" ]
                                     [ leftLabel "Other participants:"

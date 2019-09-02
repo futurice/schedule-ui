@@ -106,6 +106,15 @@ addEventTemplate scheduleName summary =
         }
 
 
+editEventTemplate : String -> EventTemplate -> Cmd Msg
+editEventTemplate scheduleTemplateName eventTemplate =
+    Http.post
+        { url = rootUrl ++ "/commands/edit-event-template"
+        , body = Http.jsonBody <| editEventTemplateJson scheduleTemplateName eventTemplate
+        , expect = Http.expectWhatever (EditEventTemplateSubmitted scheduleTemplateName eventTemplate.eventTemplateId)
+        }
+
+
 eventDecoder : Decoder Event
 eventDecoder =
     Decode.succeed
@@ -140,11 +149,22 @@ monthOffsetDecoder =
         |> required "Right" int
 
 
+monthOffsetEncoder : Int -> Encode.Value
+monthOffsetEncoder offset =
+    Encode.object [ ( "Right", Encode.int offset ) ]
+
+
 dayOffsetDecoder : Decoder Offset
 dayOffsetDecoder =
     Decode.succeed
         DayOffset
         |> required "Left" int
+
+
+dayOffsetEncoder : Int -> Encode.Value
+dayOffsetEncoder offset =
+    Encode.object
+        [ ( "Left", Encode.int offset ) ]
 
 
 eventTemplateDecoder : Decoder EventTemplate
@@ -159,6 +179,7 @@ eventTemplateDecoder =
         |> required "endTime" string
         |> required "inviteSupervisors" bool
         |> required "isCollective" bool
+        |> required "otherParticipants" (list int)
 
 
 scheduleTemplateDecoder : Decoder ScheduleTemplate
@@ -193,4 +214,30 @@ eventTemplateCreationToJson scheduleName eventTemplateSummary =
     Encode.object
         [ ( "scheduleTemplateName", Encode.string scheduleName )
         , ( "eventTemplateSummary", Encode.string eventTemplateSummary )
+        ]
+
+
+editEventTemplateJson : String -> EventTemplate -> Encode.Value
+editEventTemplateJson scheduleTemplateName eventTemplate =
+    let
+        offsetValue =
+            case eventTemplate.eventTemplateOffset of
+                MonthOffset offset ->
+                    monthOffsetEncoder offset
+
+                DayOffset offset ->
+                    dayOffsetEncoder offset
+    in
+    Encode.object
+        [ ( "scheduleTemplateName", Encode.string scheduleTemplateName )
+        , ( "eventTemplateId", Encode.string eventTemplate.eventTemplateId )
+        , ( "summary", Encode.string eventTemplate.eventTemplateSummary )
+        , ( "description", Encode.string eventTemplate.eventTemplateDescription )
+        , ( "timeOffset", offsetValue )
+        , ( "startTime", Encode.string eventTemplate.eventTemplateStartTime )
+        , ( "endTime", Encode.string eventTemplate.eventTemplateEndTime )
+        , ( "inviteEmployees", Encode.bool True )
+        , ( "inviteSupervisors", Encode.bool eventTemplate.eventTemplateInviteSupervisors )
+        , ( "isCollective", Encode.bool eventTemplate.eventTemplateIsCollective )
+        , ( "otherParticipants", Encode.list Encode.int eventTemplate.eventTemplateOtherParticipants )
         ]

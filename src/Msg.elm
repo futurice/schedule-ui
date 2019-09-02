@@ -26,4 +26,8 @@ type Msg
     | ToggleEventTemplateOpenStatus String
     | AddEventTemplate String String
     | EditNewEventTemplate String
+    | EditEventTemplate String EventTemplate
     | NewEventTemplateSubmitted (Result Http.Error ())
+    | ResetEditedScheduleTemplate String
+    | SaveEventTemplates String
+    | EditEventTemplateSubmitted String String (Result Http.Error ())

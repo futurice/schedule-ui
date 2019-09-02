@@ -70,6 +70,7 @@ type alias EventTemplate =
     , eventTemplateEndTime : String
     , eventTemplateInviteSupervisors : Bool
     , eventTemplateIsCollective : Bool
+    , eventTemplateOtherParticipants : List Int
     }
 
 
