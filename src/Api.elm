@@ -179,7 +179,7 @@ eventTemplateDecoder =
         |> required "endTime" string
         |> required "inviteSupervisors" bool
         |> required "isCollective" bool
-        |> required "otherParticipants" (list int)
+        |> required "otherParticipants" (Decode.map Set.fromList <| list int)
 
 
 scheduleTemplateDecoder : Decoder ScheduleTemplate
@@ -239,5 +239,5 @@ editEventTemplateJson scheduleTemplateName eventTemplate =
         , ( "inviteEmployees", Encode.bool True )
         , ( "inviteSupervisors", Encode.bool eventTemplate.eventTemplateInviteSupervisors )
         , ( "isCollective", Encode.bool eventTemplate.eventTemplateIsCollective )
-        , ( "otherParticipants", Encode.list Encode.int eventTemplate.eventTemplateOtherParticipants )
+        , ( "otherParticipants", Encode.list Encode.int <| Set.toList eventTemplate.eventTemplateOtherParticipants )
         ]

@@ -2,6 +2,7 @@ module Pages.EditScheduleTemplatePage exposing (..)
 
 import Array
 import Browser
+import Date
 import Debug
 import Dict
 import Html exposing (..)
@@ -42,12 +43,40 @@ comparableToOffset comp =
             Nothing
 
 
-editScheduleTemplatePage : Model -> Browser.Document Msg
-editScheduleTemplatePage model =
-    let
-        scheduleTemplateDict =
-            Dict.fromList <| List.map (\s -> ( s.templateName, s )) model.scheduleTemplates
+scheduleTemplateDict : Model -> Dict.Dict String ScheduleTemplate
+scheduleTemplateDict model =
+    Dict.fromList <| List.map (\s -> ( s.templateName, s )) model.scheduleTemplates
 
+
+templateToEdit : Model -> Bool -> Maybe ScheduleTemplate
+templateToEdit model editTemplate =
+    if editTemplate then
+        model.scheduleTemplateToEdit |> andThen Url.percentDecode |> andThen (\s -> Dict.get s <| scheduleTemplateDict model)
+
+    else
+        Dict.get model.newSchedule.templateName <| scheduleTemplateDict model
+
+
+addOffsetToDate : String -> Offset -> String
+addOffsetToDate dateString offset =
+    let
+        date =
+            Date.fromIsoString dateString
+    in
+    case ( date, offset ) of
+        ( Ok d, DayOffset dayOffset ) ->
+            Date.toIsoString <| Date.add Date.Days dayOffset d
+
+        ( Ok d, MonthOffset monthOffset ) ->
+            Date.toIsoString <| Date.add Date.Months monthOffset d
+
+        _ ->
+            dateString
+
+
+editScheduleTemplatePage : Model -> Bool -> Browser.Document Msg
+editScheduleTemplatePage model editTemplate =
+    let
         weekdays =
             Array.fromList [ "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" ]
 
@@ -72,8 +101,11 @@ editScheduleTemplatePage model =
         emptyOption =
             List.singleton <| option [ selected False, value "" ] [ text "" ]
 
+        employeeDict =
+            Dict.fromList <| List.map (\e -> ( e.employeeId, e )) model.employees
+
         body =
-            case model.scheduleTemplateToEdit |> andThen Url.percentDecode |> andThen (\s -> Dict.get s scheduleTemplateDict) of
+            case templateToEdit model editTemplate of
                 Nothing ->
                     div [] []
 
@@ -133,19 +165,25 @@ editScheduleTemplatePage model =
                         rightLabel i =
                             div [ class "small-5 columns", class "float-left" ] [ i ]
 
+                        rightLabelWithSize size i =
+                            div [ class <| "small-" ++ String.fromInt size ++ " columns", class "float-left" ] [ i ]
+
                         weekdayText offset =
                             comparableToOffset offset
                                 |> andThen
                                     (\o ->
                                         case o of
-                                            MonthOffset _ ->
-                                                Nothing
+                                            MonthOffset m ->
+                                                if m == 1 then
+                                                    Just "+1 month"
+
+                                                else
+                                                    Just <| "+" ++ String.fromInt m ++ " months"
 
                                             DayOffset d ->
-                                                Just d
+                                                Just << Maybe.withDefault "Monday" <| Array.get (modBy 7 d) weekdays
                                     )
-                                |> andThen (\d -> Array.get (modBy 7 d) weekdays)
-                                |> Maybe.withDefault "Monday"
+                                |> Maybe.withDefault ""
 
                         offsetHtml ( offset, templates ) =
                             [ h2 [] [ text <| weekdayText offset ] ] ++ List.map eventTemplateHtml templates
@@ -158,6 +196,13 @@ editScheduleTemplatePage model =
                                         [ input [ type_ "text", value model.newEventTemplateSummary, onInput <| EditNewEventTemplate ] []
                                         , button [ class "button", onClick <| AddEventTemplate template.templateName model.newEventTemplateSummary ] [ text "Add" ]
                                         ]
+                                ]
+
+                        submitNewScheduleHtml =
+                            div [ class "row" ]
+                                [ button [ class "button" ] [ text "Create events in Google calendar" ]
+                                , text " "
+                                , button [ class "button", onClick CancelNewSchedule ] [ text "Cancel" ]
                                 ]
 
                         eventTemplateHtml eventTemplate =
@@ -178,8 +223,15 @@ editScheduleTemplatePage model =
 
                         eventTemplateOpenDiv eventTemplate =
                             let
+                                getEventTemplateInfo =
+                                    if editTemplate then
+                                        Dict.get template.templateName model.eventTemplateEdits |> andThen (Dict.get eventTemplate.eventTemplateId)
+
+                                    else
+                                        Dict.get eventTemplate.eventTemplateId model.newScheduleEventTemplates
+
                                 newEventTemplate =
-                                    case Dict.get template.templateName model.eventTemplateEdits |> andThen (Dict.get eventTemplate.eventTemplateId) of
+                                    case getEventTemplateInfo of
                                         Nothing ->
                                             eventTemplate
 
@@ -192,16 +244,51 @@ editScheduleTemplatePage model =
                                 setEventTemplateDescription description =
                                     { newEventTemplate | eventTemplateDescription = description }
 
-                                --                        setEventTemplateOffset  TODO: think about this
+                                setEventTemplateOffsetType t =
+                                    let
+                                        offsetVal =
+                                            unwrapOffset newEventTemplate.eventTemplateOffset
+                                    in
+                                    case t of
+                                        "day" ->
+                                            { newEventTemplate | eventTemplateOffset = DayOffset offsetVal }
+
+                                        _ ->
+                                            { newEventTemplate | eventTemplateOffset = MonthOffset offsetVal }
+
+                                setEventTemplateOffsetValue val =
+                                    case String.toInt val of
+                                        Just v ->
+                                            { newEventTemplate | eventTemplateOffset = mapOffset (\_ -> v) newEventTemplate.eventTemplateOffset }
+
+                                        Nothing ->
+                                            newEventTemplate
+
                                 setEventTemplateStartTime startTime =
                                     { newEventTemplate | eventTemplateStartTime = startTime }
 
-                                --                        setEventTemplateEndTime : String
+                                setEventTemplateEndTime endTime =
+                                    { newEventTemplate | eventTemplateEndTime = endTime }
+
                                 setEventTemplateInviteSupervisors val =
                                     { newEventTemplate | eventTemplateInviteSupervisors = val }
 
                                 setEventTemplateIsCollective val =
                                     { newEventTemplate | eventTemplateIsCollective = val }
+
+                                selectOtherParticipants val =
+                                    let
+                                        newList =
+                                            Set.union newEventTemplate.eventTemplateOtherParticipants <| Maybe.withDefault Set.empty (Maybe.map Set.singleton <| String.toInt val)
+                                    in
+                                    { newEventTemplate | eventTemplateOtherParticipants = newList }
+
+                                removeSelectionOtherParticipants val =
+                                    let
+                                        newList =
+                                            Set.filter (\v -> v /= val) newEventTemplate.eventTemplateOtherParticipants
+                                    in
+                                    { newEventTemplate | eventTemplateOtherParticipants = newList }
 
                                 borderColor noErrors =
                                     if noErrors then
@@ -209,15 +296,37 @@ editScheduleTemplatePage model =
 
                                     else
                                         style "border-color" "red"
+
+                                getEditMsg =
+                                    if editTemplate then
+                                        EditEventTemplate template.templateName
+
+                                    else
+                                        EditNewScheduleEventTemplate
+
+                                employeeIdToLi employeeId =
+                                    case Dict.get employeeId employeeDict of
+                                        Just employee ->
+                                            li []
+                                                [ text employee.employeeName
+                                                , button [ class "button tiny secondary", onClick <| getEditMsg <| removeSelectionOtherParticipants employeeId ] [ text "x" ]
+                                                ]
+
+                                        Nothing ->
+                                            li [] []
+
+                                timeBorderValue val =
+                                    borderColor (Regex.contains (Maybe.withDefault Regex.never <| Regex.fromString "^([0-2]?\\d:[0-5]\\d)?$") val)
                             in
                             div []
-                                [ div [ class "row" ]
+                                [ div [ onClick <| ToggleEventTemplateOpenStatus eventTemplate.eventTemplateId ] [ text "Close" ]
+                                , div [ class "row" ]
                                     [ leftLabel "Summary:"
                                     , rightLabel <|
                                         input
                                             [ type_ "text"
                                             , value newEventTemplate.eventTemplateSummary
-                                            , onInput (EditEventTemplate template.templateName << setEventTemplateSummary)
+                                            , onInput (getEditMsg << setEventTemplateSummary)
                                             ]
                                             []
                                     ]
@@ -227,7 +336,7 @@ editScheduleTemplatePage model =
                                         input
                                             [ type_ "text"
                                             , value newEventTemplate.eventTemplateDescription
-                                            , onInput (EditEventTemplate template.templateName << setEventTemplateDescription)
+                                            , onInput (getEditMsg << setEventTemplateDescription)
                                             ]
                                             []
                                     ]
@@ -243,21 +352,44 @@ editScheduleTemplatePage model =
                                     [ leftLabel "Locations:"
                                     , rightLabel <| select [] []
                                     ]
-                                , div [ class "row" ]
-                                    [ leftLabel "Day offset:"
-                                    , rightLabel <| input [ type_ "text", value newTemplate.templateName ] []
-                                    ]
-                                , div [ class "row" ]
-                                    [ leftLabel "Month offset:"
-                                    , rightLabel <| input [ type_ "text", value newTemplate.templateName ] []
-                                    ]
+                                , if editTemplate then
+                                    div [ class "row" ]
+                                        [ leftLabel "Offset:"
+                                        , div [ class "small-2 columns" ]
+                                            [ select [ onInput <| (getEditMsg << setEventTemplateOffsetType) ]
+                                                [ option [ selected <| isDayOffset newEventTemplate.eventTemplateOffset, value "day" ] [ text "Day offset" ]
+                                                , option [ selected <| isMonthOffset newEventTemplate.eventTemplateOffset, value "month" ] [ text "Month offset" ]
+                                                ]
+                                            ]
+                                        , rightLabelWithSize 1 <|
+                                            input
+                                                [ type_ "number"
+                                                , onInput (getEditMsg << setEventTemplateOffsetValue)
+                                                , value <| String.fromInt <| unwrapOffset newEventTemplate.eventTemplateOffset
+                                                ]
+                                                []
+                                        ]
+
+                                  else
+                                    div [ class "row" ]
+                                        [ leftLabel "Date:"
+                                        , rightLabelWithSize 2 <| input [ type_ "date", value <| addOffsetToDate model.newSchedule.startDate newEventTemplate.eventTemplateOffset ] []
+                                        ]
                                 , div [ class "row" ]
                                     [ leftLabel "From:"
-                                    , rightLabel <|
+                                    , rightLabelWithSize 2 <|
                                         input
                                             [ type_ "text"
-                                            , onInput (EditEventTemplate template.templateName << setEventTemplateStartTime)
-                                            , borderColor (Regex.contains (Maybe.withDefault Regex.never <| Regex.fromString "^([0-2]?\\d:[0-5]\\d)?$") newEventTemplate.eventTemplateStartTime)
+                                            , onInput (getEditMsg << setEventTemplateStartTime)
+                                            , timeBorderValue newEventTemplate.eventTemplateStartTime
+                                            ]
+                                            []
+                                    , rightLabelWithSize 1 <| span [] [ text " to " ]
+                                    , rightLabelWithSize 2 <|
+                                        input
+                                            [ type_ "text"
+                                            , onInput (getEditMsg << setEventTemplateEndTime)
+                                            , timeBorderValue newEventTemplate.eventTemplateEndTime
                                             ]
                                             []
                                     ]
@@ -269,7 +401,7 @@ editScheduleTemplatePage model =
                                             , label [] [ text "Invite employees" ]
                                             , input
                                                 [ type_ "checkbox"
-                                                , onCheck (EditEventTemplate template.templateName << setEventTemplateInviteSupervisors)
+                                                , onCheck (getEditMsg << setEventTemplateInviteSupervisors)
                                                 , checked newEventTemplate.eventTemplateInviteSupervisors
                                                 ]
                                                 []
@@ -285,7 +417,11 @@ editScheduleTemplatePage model =
                                     ]
                                 , div [ class "row" ]
                                     [ leftLabel "Other participants:"
-                                    , rightLabel <| input [ type_ "text", value newTemplate.templateName ] []
+                                    , rightLabel <|
+                                        div []
+                                            [ ul [ class "no-bullet" ] (List.map employeeIdToLi <| Set.toList newEventTemplate.eventTemplateOtherParticipants)
+                                            , select [ name "employees", onInput (getEditMsg << selectOtherParticipants) ] (List.map employeeToOption model.employees)
+                                            ]
                                     ]
                                 , div [ class "row" ]
                                     [ button [ class "button", onClick <| DeleteEventTemplate newTemplate.templateName eventTemplate.eventTemplateId ] [ text "Delete" ]
@@ -293,7 +429,7 @@ editScheduleTemplatePage model =
                                 ]
 
                         bmap =
-                            Debug.log "templatemap" <| toBucketMap <| List.map Tuple.second <| Dict.toList template.eventTemplates
+                            toBucketMap <| List.map Tuple.second <| Dict.toList template.eventTemplates
 
                         modifyTemplateField =
                             div []
@@ -320,11 +456,23 @@ editScheduleTemplatePage model =
                                     ]
                                 ]
                     in
-                    div []
-                        [ saveChanges
-                        , modifyTemplateField
-                        , ul [] <| (List.concat <| List.map offsetHtml <| Dict.toList bmap) ++ List.singleton addEventTemplateHtml
-                        ]
+                    if editTemplate then
+                        div []
+                            [ saveChanges
+                            , modifyTemplateField
+                            , ul [ class "no-bullet" ] <| (List.concat <| List.map offsetHtml <| Dict.toList bmap) ++ List.singleton addEventTemplateHtml
+                            ]
+
+                    else
+                        div []
+                            [ ul [ class "no-bullet" ] <|
+                                (List.map eventTemplateHtml <|
+                                    List.sortBy (\e -> addOffsetToDate model.newSchedule.startDate e.eventTemplateOffset) <|
+                                        List.map Tuple.second <|
+                                            Dict.toList template.eventTemplates
+                                )
+                                    ++ List.singleton submitNewScheduleHtml
+                            ]
 
         --ul [ class "accordion" ] []
     in

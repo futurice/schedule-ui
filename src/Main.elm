@@ -12,8 +12,10 @@ import Http
 import List exposing (map)
 import Model exposing (..)
 import Msg exposing (..)
+import Pages.EditNewSchedulePage exposing (..)
 import Pages.EditScheduleTemplatePage exposing (..)
 import Pages.HomePage exposing (..)
+import Pages.NewSchedulePage exposing (..)
 import Pages.Util exposing (..)
 import Routing exposing (..)
 import Set
@@ -54,7 +56,7 @@ update msg model =
         FetchedEmployees result ->
             case result of
                 Ok employees ->
-                    ( { model | employees = employees }, Cmd.none )
+                    ( { model | employees = List.filter (\e -> String.trim e.employeeName /= "") <| List.sortBy .employeeName employees }, Cmd.none )
 
                 Err err ->
                     ( model, Cmd.none )
@@ -213,36 +215,27 @@ update msg model =
                 Err err ->
                     ( model, Cmd.none )
 
+        SetCurrentTime time ->
+            ( { model | currentTime = Just time }, Cmd.none )
 
-newSchedulePage : Model -> Browser.Document Msg
-newSchedulePage model =
-    let
-        templateToOption template =
-            option [ selected False, value template.templateName ] [ text template.templateName ]
+        SetCurrentZone zone ->
+            ( { model | currentZone = Just zone }, Cmd.none )
 
-        employeeToOption employee =
-            option [ selected False, value <| String.fromInt employee.employeeId ] [ text employee.employeeName ]
+        EditNewSchedule newSchedule ->
+            ( { model | newSchedule = newSchedule }, Cmd.none )
 
-        body =
-            div [ class "row" ]
-                [ form []
-                    [ label []
-                        [ text "From template"
-                        , select [ name "template" ] (map templateToOption model.scheduleTemplates)
-                        ]
-                    , label []
-                        [ text "Start date"
-                        , input [ type_ "date", name "start-date" ] []
-                        ]
-                    , label []
-                        [ text "For Employees"
-                        , select [ name "employees", multiple True ] (map employeeToOption model.employees)
-                        ]
-                    , button [ class "button", class "success" ] [ text "Submit" ]
-                    ]
-                ]
-    in
-    toPage model "Create new schedule" body
+        SubmitNewSchedule newSchedule ->
+            ( { model | newSchedule = newSchedule, currentPage = EditNewSchedulePage, newScheduleEventTemplates = Dict.empty, eventTemplateOpenStatus = Set.empty }, Cmd.none )
+
+        EditNewScheduleEventTemplate eventTemplate ->
+            let
+                newDict =
+                    Dict.insert eventTemplate.eventTemplateId eventTemplate model.newScheduleEventTemplates
+            in
+            ( { model | newScheduleEventTemplates = newDict }, Cmd.none )
+
+        CancelNewSchedule ->
+            ( { model | currentPage = Home }, Cmd.none )
 
 
 schedulingRequestPage : Model -> Browser.Document Msg
@@ -342,6 +335,9 @@ view model =
         NewSchedule ->
             newSchedulePage model
 
+        EditNewSchedulePage ->
+            editNewSchedulePage model
+
         SchedulingRequest ->
             schedulingRequestPage model
 
@@ -349,7 +345,7 @@ view model =
             personalSchedulesPage model
 
         EditScheduleTemplate _ ->
-            editScheduleTemplatePage model
+            editScheduleTemplatePage model True
 
 
 

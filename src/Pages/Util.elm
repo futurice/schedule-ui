@@ -1,8 +1,8 @@
 module Pages.Util exposing (..)
 
 import Browser
-import Html exposing (Attribute, Html, a, button, div, h1, header, li, text, ul)
-import Html.Attributes exposing (attribute, class, href, style)
+import Html exposing (Attribute, Html, a, button, div, h1, header, li, option, text, ul)
+import Html.Attributes exposing (attribute, class, href, selected, style, value)
 import Html.Events exposing (onClick)
 import List exposing (map)
 import Model exposing (..)
@@ -93,3 +93,8 @@ modalDialog status question confirmaction closeaction =
             , button [ class "button", onClick confirmaction ] [ text "Ok" ]
             ]
         ]
+
+
+employeeToOption : Employee -> Html msg
+employeeToOption employee =
+    option [ selected False, value <| String.fromInt employee.employeeId ] [ text employee.employeeName ]

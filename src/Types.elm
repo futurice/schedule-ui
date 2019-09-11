@@ -61,6 +61,41 @@ type Offset
     | DayOffset Int
 
 
+isDayOffset : Offset -> Bool
+isDayOffset offset =
+    case offset of
+        DayOffset _ ->
+            True
+
+        _ ->
+            False
+
+
+isMonthOffset : Offset -> Bool
+isMonthOffset =
+    not << isDayOffset
+
+
+unwrapOffset : Offset -> Int
+unwrapOffset offset =
+    case offset of
+        MonthOffset val ->
+            val
+
+        DayOffset val ->
+            val
+
+
+mapOffset : (Int -> Int) -> Offset -> Offset
+mapOffset f offset =
+    case offset of
+        MonthOffset val ->
+            MonthOffset <| f val
+
+        DayOffset val ->
+            DayOffset <| f val
+
+
 type alias EventTemplate =
     { eventTemplateId : String
     , eventTemplateSummary : String
@@ -70,7 +105,7 @@ type alias EventTemplate =
     , eventTemplateEndTime : String
     , eventTemplateInviteSupervisors : Bool
     , eventTemplateIsCollective : Bool
-    , eventTemplateOtherParticipants : List Int
+    , eventTemplateOtherParticipants : Set.Set Int
     }
 
 
@@ -102,6 +137,13 @@ type alias Schedule =
     , createdOn : String
     , eventIds : List (Maybe String)
     , status : ScheduleStatus
+    }
+
+
+type alias NewScheduleData =
+    { templateName : String
+    , startDate : String
+    , employees : Set.Set Int
     }
 
 
