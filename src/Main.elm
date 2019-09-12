@@ -5,7 +5,6 @@ import Browser
 import Browser.Navigation as Nav
 import Debug
 import Dict
-import Foundation exposing (..)
 import Html exposing (Html, a, button, div, form, h1, img, input, label, option, select, span, table, tbody, td, text, th, thead, tr)
 import Html.Attributes exposing (class, href, multiple, name, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
@@ -13,7 +12,11 @@ import Http
 import List exposing (map)
 import Model exposing (..)
 import Msg exposing (..)
+import Pages.EditNewSchedulePage exposing (..)
 import Pages.EditScheduleTemplatePage exposing (..)
+import Pages.HomePage exposing (..)
+import Pages.NewSchedulePage exposing (..)
+import Pages.Util exposing (..)
 import Routing exposing (..)
 import Set
 import String
@@ -53,7 +56,7 @@ update msg model =
         FetchedEmployees result ->
             case result of
                 Ok employees ->
-                    ( { model | employees = employees }, Cmd.none )
+                    ( { model | employees = List.filter (\e -> String.trim e.employeeName /= "") <| List.sortBy .employeeName employees }, Cmd.none )
 
                 Err err ->
                     ( model, Cmd.none )
@@ -107,11 +110,19 @@ update msg model =
                     ( model, Cmd.none )
 
         EditNewScheduleTemplate template ->
-            let
-                joku =
-                    Debug.log "uusi value" template
-            in
             ( { model | newScheduleTemplate = template }, Cmd.none )
+
+        EditEventTemplate scheduleTemplateName eventTemplate ->
+            let
+                newDict =
+                    case Dict.get scheduleTemplateName model.eventTemplateEdits of
+                        Nothing ->
+                            Dict.insert scheduleTemplateName (Dict.singleton eventTemplate.eventTemplateId eventTemplate) model.eventTemplateEdits
+
+                        Just d ->
+                            Dict.insert scheduleTemplateName (Dict.insert eventTemplate.eventTemplateId eventTemplate d) model.eventTemplateEdits
+            in
+            ( { model | eventTemplateEdits = newDict }, Cmd.none )
 
         DeletedScheduleTemplate result ->
             case result of
@@ -124,97 +135,115 @@ update msg model =
         DeleteTemplate templateName ->
             ( model, Cmd.batch [ deleteScheduleTemplate templateName ] )
 
+        EditScheduleTemplateCmd oldTemplateName template ->
+            let
+                newDict =
+                    Dict.insert oldTemplateName template model.scheduleTemplateEdits
+            in
+            ( { model | scheduleTemplateEdits = newDict }, Cmd.none )
 
-homePage : Model -> Browser.Document Msg
-homePage model =
-    let
-        newTemplate =
-            model.newScheduleTemplate
+        ResetEditedScheduleTemplate oldTemplateName ->
+            let
+                newScheduleTemplateDict =
+                    Dict.remove oldTemplateName model.scheduleTemplateEdits
 
-        setName name =
-            { newTemplate | templateName = name }
+                newEventTemplateEditsDict =
+                    Dict.remove oldTemplateName model.eventTemplateEdits
+            in
+            ( { model | scheduleTemplateEdits = newScheduleTemplateDict, eventTemplateEdits = newEventTemplateEditsDict }, Cmd.none )
 
-        setCalendar calendar =
-            { newTemplate | templateCalendar = calendar }
+        SubmitEditedScheduleTemplate templateName ->
+            ( model, Cmd.none )
 
-        setTimezone tz =
-            { newTemplate | templateTimezone = tz }
+        DeleteEventTemplate scheduleTemplateId eventTemplateId ->
+            ( model, Cmd.batch [ deleteEventTemplate scheduleTemplateId eventTemplateId ] )
 
-        toOption x =
-            option [ selected False, value x ] [ text x ]
+        DeletedEventTemplate result ->
+            case result of
+                Ok _ ->
+                    ( model, Cmd.batch [ fetchScheduleTemplates ] )
 
-        emptyOption =
-            List.singleton <| option [ selected False, value "" ] [ text "" ]
+                Err err ->
+                    ( model, Cmd.none )
 
-        newScheduleRow =
-            List.singleton <|
-                tr []
-                    [ td [] [ input [ type_ "text", onInput (\s -> EditNewScheduleTemplate <| setName s) ] [] ]
-                    , td [] [ select [ name "timezone", onInput (\s -> EditNewScheduleTemplate <| setTimezone s) ] <| emptyOption ++ map toOption model.timezones ]
-                    , td [] [ select [ name "calendar", onInput (\s -> EditNewScheduleTemplate <| setCalendar s) ] <| emptyOption ++ map toOption model.calendars ]
-                    , td [] [ button [ class "success", class "button" ] [ text "Submit" ] ]
-                    ]
+        AddEventTemplate scheduleTemplateName eventTemplateSummary ->
+            ( model, Cmd.batch [ addEventTemplate scheduleTemplateName eventTemplateSummary ] )
 
-        body =
-            div [ class "row" ]
-                [ form [ onSubmit SubmitNewScheduleTemplate ]
-                    [ table []
-                        [ thead []
-                            [ th [] [ text "Template" ]
-                            , th [] [ text "Timezone" ]
-                            , th [] [ text "Calendar" ]
-                            , th [] [ text "Actions" ]
-                            ]
-                        , let
-                            singleRow s =
-                                tr []
-                                    [ td [] [ a [ href <| "edit-schedule-template/" ++ s.templateName ] [ text s.templateName ] ]
-                                    , td [] [ text s.templateTimezone ]
-                                    , td [] [ text s.templateCalendar ]
-                                    , td []
-                                        [ button [ class "button" ] [ text "Edit" ]
-                                        , button [ class "button" ] [ text "Copy" ]
-                                        , button [ class "button", onClick (DeleteTemplate s.templateName) ] [ text "Delete" ]
-                                        ]
-                                    ]
-                          in
-                          tbody [] (map singleRow model.scheduleTemplates ++ newScheduleRow)
-                        ]
-                    ]
-                ]
-    in
-    toPage model "Schedule Home" body
+        EditNewEventTemplate eventTemplateSummary ->
+            ( { model | newEventTemplateSummary = eventTemplateSummary }, Cmd.none )
 
+        NewEventTemplateSubmitted result ->
+            case result of
+                Ok _ ->
+                    ( { model | newEventTemplateSummary = "" }, Cmd.batch [ fetchScheduleTemplates ] )
 
-newSchedulePage : Model -> Browser.Document Msg
-newSchedulePage model =
-    let
-        templateToOption template =
-            option [ selected False, value template.templateName ] [ text template.templateName ]
+                Err err ->
+                    ( model, Cmd.none )
 
-        employeeToOption employee =
-            option [ selected False, value <| String.fromInt employee.employeeId ] [ text employee.employeeName ]
+        ToggleEventTemplateOpenStatus eventTemplateId ->
+            if Set.member eventTemplateId model.eventTemplateOpenStatus then
+                ( { model | eventTemplateOpenStatus = Set.remove eventTemplateId model.eventTemplateOpenStatus }, Cmd.none )
 
-        body =
-            div [ class "row" ]
-                [ form []
-                    [ label []
-                        [ text "From template"
-                        , select [ name "template" ] (map templateToOption model.scheduleTemplates)
-                        ]
-                    , label []
-                        [ text "Start date"
-                        , input [ type_ "date", name "start-date" ] []
-                        ]
-                    , label []
-                        [ text "For Employees"
-                        , select [ name "employees", multiple True ] (map employeeToOption model.employees)
-                        ]
-                    , button [ class "button", class "success" ] [ text "Submit" ]
-                    ]
-                ]
-    in
-    toPage model "Create new schedule" body
+            else
+                ( { model | eventTemplateOpenStatus = Set.insert eventTemplateId model.eventTemplateOpenStatus }, Cmd.none )
+
+        SaveEventTemplates scheduleTemplateName ->
+            let
+                eventTemplates =
+                    Maybe.withDefault [] (Dict.get scheduleTemplateName model.eventTemplateEdits |> Maybe.andThen (Just << List.map Tuple.second << Dict.toList))
+            in
+            ( model, Cmd.batch (List.map (editEventTemplate scheduleTemplateName) eventTemplates) )
+
+        EditEventTemplateSubmitted scheduleTemplateName eventTemplateId result ->
+            case result of
+                Ok _ ->
+                    let
+                        newDict =
+                            Dict.update scheduleTemplateName (Maybe.map <| Dict.remove eventTemplateId) model.eventTemplateEdits
+
+                        eventTemplatesNotProcessedYet =
+                            Maybe.withDefault 0 (Maybe.map (List.length << Dict.toList) <| Dict.get scheduleTemplateName newDict)
+                    in
+                    ( { model | eventTemplateEdits = newDict }
+                    , if eventTemplatesNotProcessedYet > 0 then
+                        Cmd.none
+
+                      else
+                        Cmd.batch [ fetchScheduleTemplates ]
+                    )
+
+                Err err ->
+                    ( model, Cmd.none )
+
+        SetCurrentTime time ->
+            ( { model | currentTime = Just time }, Cmd.none )
+
+        SetCurrentZone zone ->
+            ( { model | currentZone = Just zone }, Cmd.none )
+
+        EditNewSchedule newSchedule ->
+            ( { model | newSchedule = newSchedule }, Cmd.none )
+
+        SubmitNewSchedule newSchedule ->
+            ( { model | newSchedule = newSchedule, currentPage = EditNewSchedulePage, newScheduleEventTemplates = Dict.empty, eventTemplateOpenStatus = Set.empty }, Cmd.none )
+
+        EditNewScheduleEventTemplate eventTemplate ->
+            let
+                newDict =
+                    Dict.insert eventTemplate.eventTemplateId eventTemplate model.newScheduleEventTemplates
+            in
+            ( { model | newScheduleEventTemplates = newDict }, Cmd.none )
+
+        CancelNewSchedule ->
+            ( { model | currentPage = Home }, Cmd.none )
+
+        NewScheduleSubmitted result ->
+            case result of
+                Ok _ ->
+                    ( model, Cmd.batch [ fetchSchedules ] )
+
+                Err err ->
+                    ( model, Cmd.none )
 
 
 schedulingRequestPage : Model -> Browser.Document Msg
@@ -314,6 +343,9 @@ view model =
         NewSchedule ->
             newSchedulePage model
 
+        EditNewSchedulePage ->
+            editNewSchedulePage model
+
         SchedulingRequest ->
             schedulingRequestPage model
 
@@ -321,7 +353,7 @@ view model =
             personalSchedulesPage model
 
         EditScheduleTemplate _ ->
-            editScheduleTemplatePage model
+            editScheduleTemplatePage model True
 
 
 

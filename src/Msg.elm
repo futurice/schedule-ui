@@ -2,6 +2,7 @@ module Msg exposing (..)
 
 import Browser
 import Http
+import Time
 import Types exposing (..)
 import Url
 
@@ -19,3 +20,22 @@ type Msg
     | EditNewScheduleTemplate ScheduleTemplate
     | DeletedScheduleTemplate (Result Http.Error ())
     | DeleteTemplate String
+    | DeleteEventTemplate String String
+    | DeletedEventTemplate (Result Http.Error ())
+    | EditScheduleTemplateCmd String ScheduleTemplate
+    | SubmitEditedScheduleTemplate String
+    | ToggleEventTemplateOpenStatus String
+    | AddEventTemplate String String
+    | EditNewEventTemplate String
+    | EditEventTemplate String EventTemplate
+    | NewEventTemplateSubmitted (Result Http.Error ())
+    | ResetEditedScheduleTemplate String
+    | SaveEventTemplates String
+    | EditEventTemplateSubmitted String String (Result Http.Error ())
+    | SetCurrentTime Time.Posix
+    | SetCurrentZone Time.Zone
+    | EditNewSchedule NewScheduleData
+    | SubmitNewSchedule NewScheduleData
+    | EditNewScheduleEventTemplate EventTemplate
+    | CancelNewSchedule
+    | NewScheduleSubmitted (Result Http.Error ())

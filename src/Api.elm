@@ -88,6 +88,42 @@ deleteScheduleTemplate templateName =
         }
 
 
+deleteEventTemplate : String -> String -> Cmd Msg
+deleteEventTemplate scheduleTemplateId eventTemplateId =
+    Http.post
+        { url = rootUrl ++ "/commands/delete-event-template/"
+        , body = Http.jsonBody <| deleteEventTemplateJson scheduleTemplateId eventTemplateId
+        , expect = Http.expectWhatever DeletedEventTemplate
+        }
+
+
+addEventTemplate : String -> String -> Cmd Msg
+addEventTemplate scheduleName summary =
+    Http.post
+        { url = rootUrl ++ "/commands/add-event-template"
+        , body = Http.jsonBody <| eventTemplateCreationToJson scheduleName summary
+        , expect = Http.expectWhatever NewEventTemplateSubmitted
+        }
+
+
+editEventTemplate : String -> EventTemplate -> Cmd Msg
+editEventTemplate scheduleTemplateName eventTemplate =
+    Http.post
+        { url = rootUrl ++ "/commands/edit-event-template"
+        , body = Http.jsonBody <| editEventTemplateJson scheduleTemplateName eventTemplate
+        , expect = Http.expectWhatever (EditEventTemplateSubmitted scheduleTemplateName eventTemplate.eventTemplateId)
+        }
+
+
+postNewSchedule : String -> String -> List EventTemplate -> Cmd Msg
+postNewSchedule startDate scheduleTemplateName eventTemplates =
+    Http.post
+        { url = rootUrl ++ "create-schedule"
+        , body = Http.jsonBody <| newScheduleJson startDate scheduleTemplateName eventTemplates
+        , expect = Http.expectWhatever NewScheduleSubmitted
+        }
+
+
 eventDecoder : Decoder Event
 eventDecoder =
     Decode.succeed
@@ -122,11 +158,22 @@ monthOffsetDecoder =
         |> required "Right" int
 
 
+monthOffsetEncoder : Int -> Encode.Value
+monthOffsetEncoder offset =
+    Encode.object [ ( "Right", Encode.int offset ) ]
+
+
 dayOffsetDecoder : Decoder Offset
 dayOffsetDecoder =
     Decode.succeed
         DayOffset
         |> required "Left" int
+
+
+dayOffsetEncoder : Int -> Encode.Value
+dayOffsetEncoder offset =
+    Encode.object
+        [ ( "Left", Encode.int offset ) ]
 
 
 eventTemplateDecoder : Decoder EventTemplate
@@ -141,6 +188,7 @@ eventTemplateDecoder =
         |> required "endTime" string
         |> required "inviteSupervisors" bool
         |> required "isCollective" bool
+        |> required "otherParticipants" (Decode.map Set.fromList <| list int)
 
 
 scheduleTemplateDecoder : Decoder ScheduleTemplate
@@ -159,4 +207,67 @@ scheduleTemplateToJson scheduleTemplate =
         [ ( "name", Encode.string scheduleTemplate.templateName )
         , ( "calendar", Encode.string scheduleTemplate.templateCalendar )
         , ( "timeZone", Encode.string scheduleTemplate.templateTimezone )
+        ]
+
+
+deleteEventTemplateJson : String -> String -> Encode.Value
+deleteEventTemplateJson scheduleTemplateId eventTemplateId =
+    Encode.object
+        [ ( "scheduleTemplate", Encode.string scheduleTemplateId )
+        , ( "id", Encode.string eventTemplateId )
+        ]
+
+
+eventTemplateCreationToJson : String -> String -> Encode.Value
+eventTemplateCreationToJson scheduleName eventTemplateSummary =
+    Encode.object
+        [ ( "scheduleTemplateName", Encode.string scheduleName )
+        , ( "eventTemplateSummary", Encode.string eventTemplateSummary )
+        ]
+
+
+editEventTemplateJson : String -> EventTemplate -> Encode.Value
+editEventTemplateJson scheduleTemplateName eventTemplate =
+    let
+        offsetValue =
+            case eventTemplate.eventTemplateOffset of
+                MonthOffset offset ->
+                    monthOffsetEncoder offset
+
+                DayOffset offset ->
+                    dayOffsetEncoder offset
+    in
+    Encode.object
+        [ ( "scheduleTemplateName", Encode.string scheduleTemplateName )
+        , ( "eventTemplateId", Encode.string eventTemplate.eventTemplateId )
+        , ( "summary", Encode.string eventTemplate.eventTemplateSummary )
+        , ( "description", Encode.string eventTemplate.eventTemplateDescription )
+        , ( "timeOffset", offsetValue )
+        , ( "startTime", Encode.string eventTemplate.eventTemplateStartTime )
+        , ( "endTime", Encode.string eventTemplate.eventTemplateEndTime )
+        , ( "inviteEmployees", Encode.bool True )
+        , ( "inviteSupervisors", Encode.bool eventTemplate.eventTemplateInviteSupervisors )
+        , ( "isCollective", Encode.bool eventTemplate.eventTemplateIsCollective )
+        , ( "otherParticipants", Encode.list Encode.int <| Set.toList eventTemplate.eventTemplateOtherParticipants )
+        ]
+
+
+eventRequestJson : String -> EventTemplate -> Encode.Value
+eventRequestJson startDate eventTemplate =
+    Encode.object
+        [ ( "summary", Encode.string eventTemplate.eventTemplateSummary )
+        , ( "description", Encode.string eventTemplate.eventTemplateDescription )
+        , ( "startDate", Encode.string startDate )
+        , ( "startTime", Encode.string eventTemplate.eventTemplateStartTime )
+        , ( "endTime", Encode.string eventTemplate.eventTemplateEndTime )
+        , ( "employees", Encode.list Encode.int <| Set.toList eventTemplate.eventTemplateOtherParticipants )
+        , ( "isCollective", Encode.bool eventTemplate.eventTemplateIsCollective )
+        ]
+
+
+newScheduleJson : String -> String -> List EventTemplate -> Encode.Value
+newScheduleJson startDate scheduleTemplateName events =
+    Encode.object
+        [ ( "templateId", Encode.string scheduleTemplateName )
+        , ( "scheduleEvents", Encode.list (eventRequestJson startDate) events )
         ]

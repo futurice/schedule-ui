@@ -1,11 +1,14 @@
-module Foundation exposing (..)
+module Pages.Util exposing (..)
 
 import Browser
-import Html exposing (Attribute, Html, a, div, h1, header, li, text, ul)
-import Html.Attributes exposing (class, href)
+import Html exposing (Attribute, Html, a, button, div, h1, header, li, option, text, ul)
+import Html.Attributes exposing (attribute, class, href, selected, style, value)
+import Html.Events exposing (onClick)
 import List exposing (map)
 import Model exposing (..)
+import Msg exposing (..)
 import Routing exposing (Nav, Route(..), routeToNav, routeToTitle)
+import Types exposing (..)
 
 
 fullRow : List (Attribute msg) -> List (Html msg) -> Html msg
@@ -67,3 +70,31 @@ toPage model title body =
                 ]
     in
     { title = title, body = [ rest ] }
+
+
+modalDialog : ModalDialogStatus -> String -> Msg -> Msg -> Html Msg
+modalDialog status question confirmaction closeaction =
+    let
+        visibility =
+            case status of
+                Opened ->
+                    "block"
+
+                Closed ->
+                    "none"
+    in
+    div
+        [ attribute "display" visibility
+        , style "position" "fixed"
+        ]
+        [ text question
+        , div []
+            [ button [ class "button", onClick closeaction ] [ text "Cancel" ]
+            , button [ class "button", onClick confirmaction ] [ text "Ok" ]
+            ]
+        ]
+
+
+employeeToOption : Employee -> Html msg
+employeeToOption employee =
+    option [ selected False, value <| String.fromInt employee.employeeId ] [ text employee.employeeName ]

@@ -9,6 +9,7 @@ import Url.Parser as Parser exposing ((</>))
 type Route
     = Home
     | NewSchedule
+    | EditNewSchedulePage
     | SchedulingRequest
     | PersonalSchedules
     | EditScheduleTemplate String
@@ -26,6 +27,9 @@ routeToTitle home =
 
         NewSchedule ->
             "New schedule"
+
+        EditNewSchedulePage ->
+            "Create new schedule"
 
         SchedulingRequest ->
             "Scheduling Requests"
@@ -45,6 +49,9 @@ routeToNav route =
 
         NewSchedule ->
             ( href "new-schedule", routeToTitle route )
+
+        EditNewSchedulePage ->
+            ( href "edit-new-schedule", routeToTitle route )
 
         SchedulingRequest ->
             ( href "scheduling-request", routeToTitle route )
