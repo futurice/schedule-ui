@@ -237,6 +237,14 @@ update msg model =
         CancelNewSchedule ->
             ( { model | currentPage = Home }, Cmd.none )
 
+        NewScheduleSubmitted result ->
+            case result of
+                Ok _ ->
+                    ( model, Cmd.batch [ fetchSchedules ] )
+
+                Err err ->
+                    ( model, Cmd.none )
+
 
 schedulingRequestPage : Model -> Browser.Document Msg
 schedulingRequestPage model =

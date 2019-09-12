@@ -38,3 +38,4 @@ type Msg
     | SubmitNewSchedule NewScheduleData
     | EditNewScheduleEventTemplate EventTemplate
     | CancelNewSchedule
+    | NewScheduleSubmitted (Result Http.Error ())

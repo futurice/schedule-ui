@@ -115,6 +115,15 @@ editEventTemplate scheduleTemplateName eventTemplate =
         }
 
 
+postNewSchedule : String -> String -> List EventTemplate -> Cmd Msg
+postNewSchedule startDate scheduleTemplateName eventTemplates =
+    Http.post
+        { url = rootUrl ++ "create-schedule"
+        , body = Http.jsonBody <| newScheduleJson startDate scheduleTemplateName eventTemplates
+        , expect = Http.expectWhatever NewScheduleSubmitted
+        }
+
+
 eventDecoder : Decoder Event
 eventDecoder =
     Decode.succeed
@@ -240,4 +249,25 @@ editEventTemplateJson scheduleTemplateName eventTemplate =
         , ( "inviteSupervisors", Encode.bool eventTemplate.eventTemplateInviteSupervisors )
         , ( "isCollective", Encode.bool eventTemplate.eventTemplateIsCollective )
         , ( "otherParticipants", Encode.list Encode.int <| Set.toList eventTemplate.eventTemplateOtherParticipants )
+        ]
+
+
+eventRequestJson : String -> EventTemplate -> Encode.Value
+eventRequestJson startDate eventTemplate =
+    Encode.object
+        [ ( "summary", Encode.string eventTemplate.eventTemplateSummary )
+        , ( "description", Encode.string eventTemplate.eventTemplateDescription )
+        , ( "startDate", Encode.string startDate )
+        , ( "startTime", Encode.string eventTemplate.eventTemplateStartTime )
+        , ( "endTime", Encode.string eventTemplate.eventTemplateEndTime )
+        , ( "employees", Encode.list Encode.int <| Set.toList eventTemplate.eventTemplateOtherParticipants )
+        , ( "isCollective", Encode.bool eventTemplate.eventTemplateIsCollective )
+        ]
+
+
+newScheduleJson : String -> String -> List EventTemplate -> Encode.Value
+newScheduleJson startDate scheduleTemplateName events =
+    Encode.object
+        [ ( "templateId", Encode.string scheduleTemplateName )
+        , ( "scheduleEvents", Encode.list (eventRequestJson startDate) events )
         ]
